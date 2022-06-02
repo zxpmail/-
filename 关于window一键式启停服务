@@ -1,0 +1,112 @@
+@Echo OFF
+
+@color 02
+rem ===============获取管理员权限=======================================================================================
+%1 %2
+ver|find "5.">nul&&goto :Admin
+mshta vbscript:createobject("shell.application").shellexecute("%~s0","goto :Admin","","runas",1)(window.close)&goto :eof
+:Admin
+rem ===============设置jdk环境==============================================
+set currentDir=%~dp0
+if (%JAVA_HOME%)==() (
+    setx JAVA_HOME "%currentDir%jdk1.8.0_131" /M
+	setx path "%path%;%%JAVA_HOME%%\bin" /M
+	setx CLASSPATH .;%%JAVA_HOME%%\lib\dt.jar;%%JAVA_HOME%%\lib\tools.jar /M
+)
+set javaw="%JAVA_HOME%\bin\javaw.exe"
+@set path=%JAVA_HOME%bin;%path%
+rem ===============设置窗口TITLE=======================================================================================
+@set tm1=%time:~0,2%
+@set tm2=%time:~3,2%
+@set tm3=%time:~6,2%
+@TITLE 一键安装服务 [%date% %tm1%:%tm2%:%tm3%]。
+
+rem ===============设置菜单函数=======================================================================================
+:Menu
+CLS
+ECHO =========================================
+ECHO 服务 一键安装
+ECHO version:v0.1
+ECHO by zhouxp
+ECHO.
+ECHO 请选择要进行的操作，然后按回车
+ECHO.
+ECHO 1. 启动服务
+ECHO 2. 停止服务
+ECHO 0. 退出
+ECHO =========================================
+ECHO.
+
+rem ===============设置选择项目函数=======================================================================================
+:Item
+SET Choice=
+SET /P Choice=选择:
+rem 设定变量"Choice"为用户输入的字符
+IF NOT "%Choice%"=="" SET Choice=%Choice:~0,1%
+rem 如果输入大于1位,取第1位,比如输入132,则返回值为1
+ECHO.
+IF /I "%Choice%"=="1" GOTO Start
+IF /I "%Choice%"=="2" GOTO Stop
+IF /I "%Choice%"=="0" GOTO End
+rem 为避免出现返回值为空或含空格而导致程序异常,需在变量外另加双引号
+rem 注意,IF语句需要双等于号
+rem 如果输入的字符不是以上数字,将返回重新输入
+ECHO 选择无效，请重新输入...
+ECHO.
+GOTO Item
+
+:Start
+rem ===============启动注册中心程序==============================================
+
+echo ******启动注册中心程序******
+set hgd-eureka="%JAVA_HOME%\bin\hgd-eureka.exe"
+rem 复制文件
+if not exist  %hgd-eureka% (
+  copy %javaw% %hgd-eureka%
+)
+start hgd-eureka -jar %currentDir%\hgd-eureka.jar
+rem 等待8秒，ping一次1秒
+ping -n 8 127.0.0.1>nul
+
+rem ===============启动网关程序==============================================
+echo ******启动网关程序******
+set hgd-getway="%JAVA_HOME%\bin\hgd-getway.exe"
+if not exist  %hgd-getway% (
+  copy %javaw% %hgd-getway%
+)
+start	hgd-getway -jar %currentDir%\hgd-gateway.jar
+ping -n 8 127.0.0.1>nul
+
+rem ===============启动redis程序==============================================
+echo ******启动redis程序******
+start  %currentDir%redis\redis-server.exe 
+ping -n 8 127.0.0.1>nul
+
+rem ===============启动nginx程序==============================================
+echo ******启动nginx程序******
+start  %currentDir%nginx\nginx.exe
+ping -n 8 127.0.0.1>nul
+exit
+
+
+rem ===============设置停止MySQL函数=======================================================================================
+:Stop
+echo ******正在关闭网关程序******
+taskkill /f /t /im hgd-getway.exe 2>nul 
+ping -n 8 127.0.0.1>nul
+echo ******正在关闭注册中心程序******
+taskkill /f /t /im hgd-eureka.exe 2>nul 
+ping -n 8 127.0.0.1>nul
+echo ******正在关闭nginx程序******
+taskkill /f /t /im nginx* 2>nul 
+ping -n 8 127.0.0.1>nul
+echo ******正在关闭redis程序******
+taskkill /f /t /im redis* 2>nul 
+ping -n 8 127.0.0.1>nul
+ECHO 按任意键继续...
+PAUSE >nul
+GOTO Menu
+
+rem ===============设置退出函数=======================================================================================
+:End
+EXIT
