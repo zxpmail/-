@@ -1,3 +1,0 @@
-1、拉取centos基础镜像
-docker pull centos
-2、下载jdk8安装包并上传至已创建的特定目录
