@@ -1,0 +1,28 @@
+FROM centos_jdk8:v1.0 
+
+ENV LANG=zh_CN.UTF-8
+ENV LANGUAGE=zh_CN.UTF-8
+ENV TZ=Asia/Shanghai
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+ENV HOME /stk
+RUN mkdir ${HOME}
+
+RUN LD_LIBRARY_PATH=/stk/lib
+RUN export LD_LIBRARY_PATH
+
+ENV LD_LIBRARY_PATH=/stk/lib
+ENV ALG_LIB_CPP=true
+
+RUN PATH='/stk/lib:$PATH'
+RUN export PATH
+
+COPY ./lib /stk/lib
+COPY ./export/orekit-data /export/STK-HR/orekit-data
+COPY ./export/alg-test /export/STK-HR/alg-test
+COPY ./stk-alg-service-srv-2.0-SNAPSHOT.jar /stk/
+RUN ldconfig
+
+WORKDIR ${HOME}
+EXPOSE 8091
+ENTRYPOINT ["java","-jar","stk-alg-service-srv-2.0-SNAPSHOT.jar","-Dspring.profiles.active=prod"]
