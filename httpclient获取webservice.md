@@ -103,7 +103,7 @@ https://www.soapui.org/downloads/soapui/soapui-os-older-versions/
 
 在soapui中输入[127.0.0.1](http://127.0.0.1:8089/myservice?wsdl)
 
-![1654569792382](C:\Users\EDY\AppData\Roaming\Typora\typora-user-images\1654569792382.png)
+![1654569792382](1654569792382.png)
 
 在用httpclient处理
 
