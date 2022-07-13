@@ -1,0 +1,209 @@
+@Echo OFF
+
+@color 02
+rem ===============获取管理员权限=======================================================================================
+%1 %2
+ver|find "5.">nul&&goto :Admin
+mshta vbscript:createobject("shell.application").shellexecute("%~s0","goto :Admin","","runas",1)(window.close)&goto :eof
+:Admin
+rem ===============配置环境变量=======================================================================================
+@SET dbhost=127.0.0.1
+@SET dbuser=root
+@SET dbpasswd=123456
+set currentDir=%~dp0
+set mysqlpath=mysql-5.7.38-winx64
+if (%MYSQL_HOME%)==() (
+    @setx /M MYSQL_HOME "%currentDir%%mysqlpath%
+	@setx path "%path%;%%MYSQL_HOME%%\bin" /M
+)
+@set path=%MYSQL_HOME%bin;%path%
+rem ===============设置窗口TITLE=======================================================================================
+@set tm1=%time:~0,2%
+@set tm2=%time:~3,2%
+@set tm3=%time:~6,2%
+@TITLE 一键安装MySQL工具 [%date% %tm1%:%tm2%:%tm3%]。
+
+rem ===============设置菜单函数=======================================================================================
+:Menu
+CLS
+ECHO =========================================
+ECHO MySQL 一键安装
+ECHO version:v0.1
+ECHO by zhouxp
+ECHO.
+ECHO 请选择要进行的操作，然后按回车
+ECHO.
+ECHO 1. 安装MySQL
+ECHO 2. 卸载MySQL
+ECHO 3. 启动MySQL
+ECHO 4. 停止MySQL
+ECHO 5. 备份数据
+ECHO 6. 恢复数据
+ECHO 0. 退出
+ECHO =========================================
+ECHO.
+rem ===============设置选择项目函数=======================================================================================
+:Item
+SET Choice=
+SET /P Choice=选择:
+rem 设定变量"Choice"为用户输入的字符
+IF NOT "%Choice%"=="" SET Choice=%Choice:~0,1%
+rem 如果输入大于1位,取第1位,比如输入132,则返回值为1
+ECHO.
+IF /I "%Choice%"=="1" GOTO Install
+IF /I "%Choice%"=="2" GOTO Uninstall
+IF /I "%Choice%"=="3" GOTO Start
+IF /I "%Choice%"=="4" GOTO Stop
+IF /I "%Choice%"=="5" GOTO Backup
+IF /I "%Choice%"=="6" GOTO Restore
+IF /I "%Choice%"=="0" GOTO End
+rem 为避免出现返回值为空或含空格而导致程序异常,需在变量外另加双引号
+rem 注意,IF语句需要双等于号
+rem 如果输入的字符不是以上数字,将返回重新输入
+ECHO 选择无效，请重新输入...
+ECHO.
+GOTO Item
+
+rem ===============设置启动MySQL函数=======================================================================================
+:Start
+sc query MySQL > nul
+if errorlevel 1060 ( GOTO NotExist)
+NET START MySQL
+ECHO 按任意键继续...
+PAUSE >nul
+GOTO Menu
+
+rem ===============设置停止MySQL函数=======================================================================================
+:Stop
+sc query MySQL > nul
+if errorlevel 1060 ( GOTO NotExist)
+NET STOP MySQL
+ECHO 按任意键继续...
+PAUSE >nul
+GOTO Menu
+
+rem ===============设置安装MySQL函数=======================================================================================
+:Install
+sc query MySQL > nul
+if errorlevel 1060 ( GOTO Init) else goto Exist
+rem ===============设置安装MySQL并初始化函数=======================================================================================
+:Init
+rem 安装数据库
+@echo 初始化数据库
+@mysqld --initialize --console
+@echo 开始安装数据库
+@mysqld install
+@net start MySQL
+rem 执行修改密码和开放访问权限的SQL指令
+
+set initsql=%currentDir%init.sql;
+(
+@echo use mysql;
+@echo flush privileges;
+@echo set password for root@localhost = password('%dbpasswd%'^);
+@echo CREATE USER 'root'@'%' IDENTIFIED BY 'root';
+@echo GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+@echo flush privileges;
+@echo quit;
+) > %initsql%
+@mysql -h%dbhost% -u%dbuser% -p%dbpasswd% <  %initsql% --default-character-set=utf8
+@del /Q %initsql%
+rem 恢复权限验证
+(
+@echo [mysqld]
+@echo # 设置3306端口
+@echo port=3306
+@echo # 设置mysql的安装目录
+@echo basedir=%currentDir%%mysqlpath%
+@echo # 设置mysql数据库的数据的存放目录
+@echo datadir=%currentDir%%mysqlpath%\data
+@echo # 允许最大连接数
+@echo max_connections=200
+@echo # 允许连接失败的次数。这是为了防止有人从该主机试图攻击数据库系统
+@echo max_connect_errors=10
+@echo # 服务端使用的字符集默认为UTF8
+@echo character-set-server=utf8
+@echo # 创建新表时将使用的默认存储引擎
+@echo default-storage-engine=INNODB
+@echo # 默认使用“mysql_native_password”插件认证
+@echo default_authentication_plugin=mysql_native_password
+@echo skip-grant-tables
+@echo [mysql]
+@echo # 设置mysql客户端默认字符集
+@echo default-character-set=utf8
+@echo [client]
+@echo # 设置mysql客户端连接服务端时默认使用的端口
+@echo port=3306
+@echo default-character-set=utf8
+) > "%currentDir%my.ini"
+
+@move /Y %currentDir%my.ini %currentDir%%mysqlpath%\my.ini >nul
+@net stop MySQL
+@net start MySQL
+@mysql -h%dbhost% -u%dbuser% -p%dbpasswd% < %currentDir%hos.sql 2>nul
+@ECHO 数据库安装成功
+ECHO 按任意键继续...
+PAUSE >nul
+GOTO Menu
+
+rem ===============MySQL服务存在=======================================================================================
+:Exist
+echo 服务存在
+ECHO 按任意键继续...
+PAUSE >nul
+GOTO Menu
+
+rem ===============MySQL服务不存在=======================================================================================
+:NotExist
+echo mysql没有安装，请先安装MySQL 
+ECHO 按任意键继续...
+PAUSE >nul
+GOTO Menu
+
+rem ===============设置卸载MySQL函数=======================================================================================
+:Uninstall
+sc query MySQL > nul
+if errorlevel 1060 ( GOTO NotExist)
+@netstat -ano | findstr ".*:3306\>" >nul
+if errorlevel  0 ( 
+ECHO 停止MySQL
+net stop MySQL
+ECHO 卸载MySQL
+mysqld -remove MySQL
+@echo off
+rd /S /q %currentDir%%mysqlpath%\data
+@echo Y|PowerShell.exe -NoProfile -Command Clear-RecycleBin 2>nul
+)
+ECHO 
+ECHO 按任意键继续...
+PAUSE >nul
+GOTO Menu
+
+rem ================备份数据库============================================================================
+:Backup
+ECHO 开始备份.......
+rem 注意：在mysql的命令窗口中执行max_allowed_packet和net_buffer_length使的导入导出数据变快
+rem show variables like 'max_allowed_packet'; 得到max_allowed_packet大小
+rem show variables like 'net_buffer_length';得到net_buffer_length大小
+rem max_allowed_packet和net_buffer_length的大小不能超过目标数据库两个参数的大小
+mysqldump -h%dbhost% -u%dbuser% -p%dbpasswd% stk_v2_hgd --max_allowed_packet=4194304--net_buffer_length=16384 --set-gtid-purged=OFF > %currentDir%stk_v2_hgd%date:~0,4%%date:~5,2%%date:~8,2%%time:~0,2%%time:~3,2%%time:~6,2%.sql
+ECHO 备份已经完成,按任意键继续...
+PAUSE >nul
+GOTO Menu
+rem ================备份数据库============================================================================
+:Restore
+@echo off
+set /p var=请输入要恢复的数据库文件 :  
+if not exist %currentDir%%var% (
+	ECHO 数据 %currentDir%%var% 文件不存在,按任意键继续...
+	PAUSE >nul
+	GOTO Restore
+)
+ECHO 开始恢复.......
+mysql -h%dbhost% -u%dbuser% -p%dbpasswd% stk_v2_hgd < %currentDir%%var% 2>nul
+ECHO 恢复数据已经完成,按任意键继续...
+PAUSE >nul
+GOTO Menu
+rem ===============设置退出函数=======================================================================================
+:End
+EXIT
