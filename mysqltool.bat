@@ -16,7 +16,8 @@ if (%MYSQL_HOME%)==() (
     @setx /M MYSQL_HOME "%currentDir%%mysqlpath%
 	@setx path "%path%;%%MYSQL_HOME%%\bin" /M
 )
-@set path=%MYSQL_HOME%bin;%path%
+
+@set path=%MYSQL_HOME%\bin;%path%
 rem ===============设置窗口TITLE=======================================================================================
 @set tm1=%time:~0,2%
 @set tm2=%time:~3,2%
@@ -90,13 +91,15 @@ rem ===============设置安装MySQL并初始化函数====================================
 :Init
 rem 安装数据库
 @echo 初始化数据库
+cd %currentDir%%mysqlpath%\bin
 @mysqld --initialize --console
 @echo 开始安装数据库
 @mysqld install
 @net start MySQL
+cd %currentDir
 rem 执行修改密码和开放访问权限的SQL指令
 
-set initsql=%currentDir%init.sql;
+set initsql=%currentDir%init.sql
 (
 @echo use mysql;
 @echo flush privileges;
@@ -104,9 +107,11 @@ set initsql=%currentDir%init.sql;
 @echo CREATE USER 'root'@'%' IDENTIFIED BY 'root';
 @echo GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
 @echo flush privileges;
-@echo quit;
+@echo quit
 ) > %initsql%
+
 @mysql -h%dbhost% -u%dbuser% -p%dbpasswd% <  %initsql% --default-character-set=utf8
+
 @del /Q %initsql%
 rem 恢复权限验证
 (
@@ -136,8 +141,8 @@ rem 恢复权限验证
 @echo port=3306
 @echo default-character-set=utf8
 ) > "%currentDir%my.ini"
-
 @move /Y %currentDir%my.ini %currentDir%%mysqlpath%\my.ini >nul
+
 @net stop MySQL
 @net start MySQL
 @mysql -h%dbhost% -u%dbuser% -p%dbpasswd% < %currentDir%hos.sql 2>nul
