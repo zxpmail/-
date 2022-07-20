@@ -3,10 +3,9 @@
 
 rem ===============获取管理员权限=======================================================================================
 %1 %2
-ver|find "5.">nul&&goto :Init
-mshta vbscript:createobject("shell.application").shellexecute("%~s0","goto :Init","","runas",1)(window.close)&goto :End
-rem ============判断是否是windows系统 64位操作系统 win7或win10系统以及初始化变量
-:Init
+ver|find "5.">nul&&goto :Admin
+mshta vbscript:createobject("shell.application").shellexecute("%~s0","goto :Admin","","runas",1)(window.close)&goto :eof
+:Admin
 	@set currentDir=%~dp0
 	if /i not "%os%"=="Windows_NT" (
 		@echo 运行该程序必须是windows7或是window10 64位操作系统
@@ -40,20 +39,24 @@ rem ===============初始化Mysql变量==============================================
 	@set dbpasswd=123456
 	@set currentDir=%~dp0
 	@set mysqlpath=mysql-5.7.38-winx64
+	@set javapath=jdk1.8.0_131
 	if (%MYSQL_HOME%)==() (
-		@setx /M MYSQL_HOME "%currentDir%%mysqlpath%
-		@setx path "%path%;%%MYSQL_HOME%%\bin" /M
+		@setx MYSQL_HOME "%currentDir%%mysqlpath%" /M >nul
+		@setx path "%path%;%currentDir%%mysqlpath%\bin" /M >nul
 	)
-	@set path=%MYSQL_HOME%\bin;%path%
+	@set path=%currentDir%%mysqlpath%\bin;%path%
 rem ===============设置jdk环境==============================================	
 :Jdk
 	if (%JAVA_HOME%)==() (
-		setx JAVA_HOME "%currentDir%jdk1.8.0_131" /M
-		setx path "%path%;%%JAVA_HOME%%\bin" /M
-		setx CLASSPATH .;%%JAVA_HOME%%\lib\dt.jar;%%JAVA_HOME%%\lib\tools.jar /M
+		@setx JAVA_HOME "%currentDir%%javapath%" /M >nul
+		@setx path "%path%;%currentDir%%javapath%\bin" /M >nul
+		@setx CLASSPATH .;%currentDir%%javapath%\lib\dt.jar;%currentDir%%javapath%\lib\tools.jar /M >nul
+		@echo 系统初始化完成，需要关闭程序，按任意建关闭
+		@pause
+		exit
 	)
-	@set javaw="%JAVA_HOME%\bin\javaw.exe"
-	@set path=%JAVA_HOME%\bin;%path%
+	@set javaw=%currentDir%%javapath%\bin\javaw.exe
+	@set path=%currentDir%%javapath%\bin;%path%
 
 rem ===============设置设置菜单函数=======================================================================================
 :Menu
@@ -168,18 +171,17 @@ rem ===============安装服务==============================================
 	@echo ******启动%~1程序******
 	@set exist=0
 	tasklist|find/c  "%~2.exe" >nul && set exist=1
-	@set app="%JAVA_HOME%\bin\%~2"
+	@set app=%currentDir%%javapath%\bin\%~2.exe
 	@set exe=%~3
 	if %exist%==0 (
 		if %exe%==1 (
-			start  %currentDir%%~1\%~2.exe %~4
+			@start  %currentDir%%~1\%~2.exe %~4
 		) else (
 			rem 复制文件
-			
 			if not exist %app% (
-				copy %javaw% %app%
+				@copy %javaw% %app% >nul
 			)
-			start %~2 -jar %currentDir%%~2.jar
+			@start %currentDir%%javapath%\bin\%~2.exe -jar %currentDir%%~2.jar
 		)
 		rem 等待8秒，ping一次1秒
 		ping -n 8 127.0.0.1>nul
@@ -187,7 +189,6 @@ rem ===============安装服务==============================================
 	goto:eof
 rem ===============安装服务列表==============================================
 :InstallServices
-	set javaw="%JAVA_HOME%\bin\javaw.exe"
 	call :InstallService 注册中心 hgd-eureka 0
 	call :InstallService 网关 hgd-gateway 0
 	call :InstallService redis redis-server 1 
@@ -202,11 +203,12 @@ rem ===============安装服务列表==============================================
 		echo 停止MySQL
 		net stop MySQL
 		echo 卸载MySQL
-		mysqld -remove MySQL
+		::mysqld -remove MySQL
 		@echo off
 		rd /S /q %currentDir%%mysqlpath%\data
 		@echo Y|PowerShell.exe -NoProfile -Command Clear-RecycleBin 2>nul
 	)
+	mysqld -remove MySQL 2>nul 1>nul
 	echo ******正在关闭网关程序******
 	taskkill /f /t /im hgd-gateway.exe 2>nul 
 	ping -n 3 127.0.0.1>nul
